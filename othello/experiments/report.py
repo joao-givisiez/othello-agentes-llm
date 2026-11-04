@@ -69,6 +69,54 @@ def llm_cost_table(summary: dict[str, Any]) -> str | None:
     return "\n".join(lines)
 
 
+def square_usage(out: Path) -> dict[str, dict[str, Any]]:
+    """Frequência de jogadas por tipo de casa para cada agente (de moves.jsonl).
+
+    Casas X/C só contam como "arriscadas" pelo tipo da casa; como o log não
+    guarda o tabuleiro, não se sabe se o canto vizinho estava vazio.
+    """
+    import json
+
+    from ..agents.evaluation import square_kind
+    from ..game import parse_square
+
+    path = out / "moves.jsonl"
+    if not path.exists():
+        return {}
+    usage: dict[str, dict[str, Any]] = {}
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            entry = json.loads(line)
+            if not entry.get("jogada") or entry["jogada"] in ("?", "passe"):
+                continue
+            kind = square_kind(parse_square(entry["jogada"])).split(" (")[0]
+            agent = usage.setdefault(
+                entry["spec"],
+                {"nome": entry["agente"], "total": 0, "canto": 0, "casa X": 0, "casa C": 0, "borda": 0, "interior": 0},
+            )
+            agent["total"] += 1
+            agent[kind] += 1
+    return usage
+
+
+def square_usage_table(usage: dict[str, dict[str, Any]], order: list[str]) -> str | None:
+    if not usage:
+        return None
+    lines = [
+        "| Agente | Jogadas | Cantos | Casas X | Casas C | Outras bordas | Interior |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    for spec in [s for s in order if s in usage]:
+        u = usage[spec]
+        total = u["total"] or 1
+        lines.append(
+            f"| {u['nome']} | {u['total']} | "
+            + " | ".join(_pct(u[k] / total) for k in ("canto", "casa X", "casa C", "borda", "interior"))
+            + " |"
+        )
+    return "\n".join(lines)
+
+
 def _bar_chart(labels: list[str], values: list[float], title: str, xlabel: str, path: Path, log: bool = False,
                percent: bool = False) -> None:
     import matplotlib
@@ -155,6 +203,17 @@ def write_report(summary: dict[str, Any], out: Path) -> None:
     cost = llm_cost_table(summary)
     if cost:
         parts += ["", "## Custo dos agentes LLM", "", cost]
+    usage = square_usage_table(square_usage(out), [a["spec"] for a in summary["classificacao"]])
+    if usage:
+        parts += [
+            "",
+            "## Uso de casas estratégicas",
+            "",
+            "Porcentagem das jogadas de cada agente por tipo de casa (cantos = a1, h1, a8, h8; "
+            "casas X = diagonais vizinhas dos cantos; casas C = vizinhas ortogonais dos cantos).",
+            "",
+            usage,
+        ]
     if charts:
         parts += ["", "## Gráficos", ""] + [f"![{c}]({c})" for c in charts]
     (out / "report.md").write_text("\n".join(parts) + "\n", encoding="utf-8")

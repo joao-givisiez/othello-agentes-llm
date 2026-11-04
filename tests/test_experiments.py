@@ -46,6 +46,7 @@ def test_tournament_writes_outputs_and_scores(tmp_path):
     assert json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))["partidas"] == 12
     report = (tmp_path / "report.md").read_text(encoding="utf-8")
     assert "Classificação" in report and "Confrontos diretos" in report
+    assert "Uso de casas estratégicas" in report
     assert (tmp_path / "taxa_vitoria.png").exists()
 
 
