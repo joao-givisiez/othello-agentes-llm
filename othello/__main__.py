@@ -4,6 +4,7 @@ Comandos:
     gui         interface gráfica (padrão quando nenhum comando é dado)
     play        partida no terminal
     experiment  torneio entre agentes com métricas e relatório
+    report      regenera o relatório de uma pasta de resultados
     graph      imprime o grafo LangGraph do agente LLM (Mermaid)
 """
 
@@ -57,6 +58,9 @@ def build_parser() -> argparse.ArgumentParser:
     exp.add_argument("--out", default=None, help="pasta de saída (padrão: results/<data-hora>)")
     _add_model_arg(exp)
 
+    report = sub.add_parser("report", help="regenera report.md e gráficos de uma pasta de resultados")
+    report.add_argument("folder", help="pasta com summary.json (e moves.jsonl)")
+
     graph = sub.add_parser("graph", help="mostra o grafo LangGraph do agente LLM em Mermaid")
     graph.add_argument("--mode", choices=["basic", "planner"], default="planner")
 
@@ -108,6 +112,16 @@ def main(argv: list[str] | None = None) -> None:
                 f"{i}. {a['nome']:<16} {a['pontos']:>4} pts  V{a['vitorias']} E{a['empates']} D{a['derrotas']}"
                 f"  vitória {100 * a['taxa_vitoria']:.0f}%  tempo/jogada {1000 * a['tempo_medio_jogada_s']:.1f} ms"
             )
+    elif command == "report":
+        import json
+        from pathlib import Path
+
+        from .experiments.report import write_report
+
+        folder = Path(args.folder)
+        summary = json.loads((folder / "summary.json").read_text(encoding="utf-8"))
+        write_report(summary, folder)
+        print(f"Relatório regenerado em {folder / 'report.md'}")
     elif command == "graph":
         from .llm.agent import LLMAgent
 
