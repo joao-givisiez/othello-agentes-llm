@@ -133,6 +133,7 @@ def _bar_chart(labels: list[str], values: list[float], title: str, xlabel: str, 
     ax.set_yticks(positions, labels, color=TEXT_PRIMARY, fontsize=9)
     if log:
         ax.set_xscale("log")
+        ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g}".replace(".", ",")))
     if percent:
         ax.set_xlim(0, 1)
         ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{100 * v:.0f}%"))
