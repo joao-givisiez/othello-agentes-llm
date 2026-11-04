@@ -8,4 +8,5 @@ authors = [{ name = "João Vitor Givisiez Lessa" }]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 addopts = "-q"
