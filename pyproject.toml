@@ -1,0 +1,11 @@
+[project]
+name = "othello-agentes-llm"
+version = "1.0.0"
+description = "Agentes inteligentes para Othello com LLM, ferramentas e LangGraph (TP05 - GCC128)"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "João Vitor Givisiez Lessa" }]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
