@@ -68,14 +68,23 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> None:
-    try:
-        if sys.stdout.isatty():
-            sys.stdout.reconfigure(errors="replace")  # type: ignore[attr-defined]
-        else:  # saída redirecionada para arquivo/pipe: UTF-8
-            sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
-    except (AttributeError, ValueError):
-        pass
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            if stream.isatty():
+                stream.reconfigure(errors="replace")  # type: ignore[attr-defined]
+            else:  # saída redirecionada para arquivo/pipe: UTF-8
+                stream.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+        except (AttributeError, ValueError):
+            pass
     args = build_parser().parse_args(argv)
+    try:
+        _run(args)
+    except RuntimeError as exc:  # ex.: modelo LLM sem chave de API
+        print(f"\nERRO: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
+def _run(args: argparse.Namespace) -> None:
     command = args.command or "gui"
 
     if command == "gui":
