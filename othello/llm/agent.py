@@ -17,8 +17,9 @@ Fluxo de um turno::
   acontece quando o LLM chama ``make_move``.
 * ``nudge``     se o LLM responder sem jogar, lembra-o de chamar make_move.
 * ``fallback``  jogada de segurança (melhor avaliação heurística) se o LLM
-  falhar repetidamente, estourar o limite de passos ou a API der erro - o
-  jogo nunca trava.
+  falhar repetidamente, estourar o limite de passos ou a API der erro duas
+  vezes seguidas (após um erro o ``reason`` é repetido uma vez) - o jogo
+  nunca trava.
 * ``finalize``  grava a decisão e a justificativa na memória do agente.
 
 O estado do grafo é persistido por partida com um checkpointer
@@ -47,8 +48,9 @@ from .config import create_chat_model, model_display_name, resolve_model_spec
 from .prompts import NUDGE_PROMPT, system_prompt, turn_prompt
 from .tools import ToolContext, build_tools
 
-MAX_LLM_CALLS_PER_TURN = 8
+MAX_LLM_CALLS_PER_TURN = 10  # modelos sem chamadas paralelas fazem 1 ferramenta por chamada
 MAX_NUDGES = 2
+MAX_API_RETRIES = 1  # nova tentativa após erro da API (ex.: tool_use_failed do Groq)
 MEMORY_IN_PROMPT = 6
 HISTORY_IN_PROMPT = 6
 
@@ -60,6 +62,7 @@ class AgentState(TypedDict, total=False):
     llm_calls: int
     llm_time: float
     nudges: int
+    api_errors: int
     error: str | None
     fallback: bool
     move: str | None
@@ -100,7 +103,14 @@ class LLMAgent(Agent):
     def _ensure_graph(self):
         if self._graph is None:
             if self._llm is None:
-                self._llm = create_chat_model(self._model_arg)  # type: ignore[arg-type]
+                try:
+                    self._llm = create_chat_model(self._model_arg)  # type: ignore[arg-type]
+                except Exception as exc:  # ex.: chave ausente ou pacote do provedor não instalado
+                    raise RuntimeError(
+                        f"Não foi possível criar o modelo '{self.model_name}': {exc}. "
+                        "Verifique a chave de API no arquivo .env e se o pacote do provedor "
+                        "(ex.: langchain-groq) está instalado."
+                    ) from exc
                 self.model_name = model_display_name(self._llm, self.model_name)
             self._graph = self._build_graph(self._llm.bind_tools(self.tools))
         return self._graph
@@ -139,6 +149,7 @@ class LLMAgent(Agent):
                 "llm_calls": 0,
                 "llm_time": 0.0,
                 "nudges": 0,
+                "api_errors": 0,
                 "error": None,
                 "fallback": False,
                 "move": None,
@@ -160,11 +171,17 @@ class LLMAgent(Agent):
             }
             if response is not None:
                 update["messages"] = [response]
+            else:
+                update["api_errors"] = state.get("api_errors", 0) + 1
             return update
 
         def route_after_reason(state: AgentState) -> str:
             if state.get("error"):
-                return "fallback"
+                can_retry = (
+                    state.get("api_errors", 0) <= MAX_API_RETRIES
+                    and state.get("llm_calls", 0) < self.max_llm_calls
+                )
+                return "reason" if can_retry else "fallback"
             last = state["messages"][-1]
             if isinstance(last, AIMessage) and last.tool_calls:
                 return "tools"
@@ -223,7 +240,13 @@ class LLMAgent(Agent):
         builder.add_conditional_edges(
             "reason",
             route_after_reason,
-            {"tools": "tools", "nudge": "nudge", "fallback": "fallback", "finalize": "finalize"},
+            {
+                "tools": "tools",
+                "nudge": "nudge",
+                "fallback": "fallback",
+                "finalize": "finalize",
+                "reason": "reason",  # nova tentativa após erro da API
+            },
         )
         builder.add_conditional_edges(
             "tools",

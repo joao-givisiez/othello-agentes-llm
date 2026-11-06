@@ -134,11 +134,32 @@ class _BrokenModel(_ToolAwareFake):
         raise ConnectionError("API indisponível")
 
 
-def test_agent_falls_back_on_api_error():
+def test_agent_retries_once_then_falls_back_on_api_error():
     result = LLMAgent(model=_BrokenModel()).play_turn(OthelloGame())
     assert result.fallback
+    assert result.llm_calls == 2  # tentativa original + 1 nova tentativa
     assert "API indisponível" in result.explanation
     assert result.details["erro"].startswith("ConnectionError")
+
+
+class _FlakyModel(ScriptedChatModel):
+    """Falha na primeira chamada (como um tool_use_failed do Groq) e depois segue o roteiro."""
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        if not getattr(self, "_failed", False):
+            object.__setattr__(self, "_failed", True)
+            raise ValueError("tool_use_failed")
+        return super()._generate(messages, stop, run_manager, **kwargs)
+
+
+def test_agent_recovers_from_transient_api_error():
+    model = _FlakyModel(
+        responses=[AIMessage(content="", tool_calls=[call("make_move", position="c4", reason="ok")])]
+    )
+    result = LLMAgent(model=model).play_turn(OthelloGame())
+    assert result.move == "c4"
+    assert not result.fallback
+    assert result.llm_calls == 2
 
 
 def test_memory_accumulates_during_game_and_resets_on_new_game():
