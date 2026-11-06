@@ -36,12 +36,14 @@ def llm_warning(model_spec: str | None) -> str | None:
         "anthropic": "ANTHROPIC_API_KEY",
         "openai": "OPENAI_API_KEY",
         "google_genai": "GOOGLE_API_KEY",
+        "groq": "GROQ_API_KEY",
     }.get(provider)
     if env_var and not os.getenv(env_var):
         return (
-            f"A variável {env_var} não está definida (modelo {spec}). Se a chamada ao LLM "
-            "falhar, o agente fará jogadas de segurança heurísticas. Para demonstrar o fluxo "
-            "sem chave, use o modelo 'mock' (simulado, não é um LLM)."
+            f"A variável {env_var} não está definida (modelo {spec}); configure-a no arquivo .env. "
+            "Sem ela o agente LLM não consegue usar o modelo (conforme o provedor, ele faz jogadas "
+            "de segurança heurísticas ou a partida é interrompida com um erro). Para demonstrar o "
+            "fluxo sem chave, use o modelo 'mock' (simulado, não é um LLM)."
         )
     return None
 

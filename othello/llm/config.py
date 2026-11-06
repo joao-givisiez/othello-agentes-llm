@@ -3,7 +3,9 @@
 O modelo é escolhido por uma especificação "provedor:modelo" no formato do
 ``init_chat_model`` do LangChain, lida (em ordem de prioridade) do argumento
 ``--model``, da variável de ambiente ``OTHELLO_LLM_MODEL`` (ou do arquivo
-``.env``) ou do padrão ``anthropic:claude-opus-5-5``.
+``.env``) ou do padrão ``anthropic:claude-opus-5-5``. Outros provedores
+suportados pelo LangChain funcionam instalando o pacote correspondente, por
+exemplo ``groq:openai/gpt-oss-120b`` com ``langchain-groq`` e ``GROQ_API_KEY``.
 
 A especificação especial ``mock`` usa um modelo simulado, sem LLM real, que
 segue o mesmo protocolo de ferramentas - útil para testes e para demonstrar o
@@ -51,6 +53,11 @@ def create_chat_model(spec: str | None = None) -> BaseChatModel:
         effort = os.getenv("OTHELLO_LLM_EFFORT")
         if effort:
             kwargs["effort"] = effort.strip()
+    elif provider == "groq":
+        kwargs["timeout"] = 300
+        effort = os.getenv("OTHELLO_LLM_EFFORT")
+        if effort:  # modelos de raciocínio do Groq (ex.: openai/gpt-oss-*)
+            kwargs["reasoning_effort"] = effort.strip()
     elif provider in ("openai", "google_genai"):
         kwargs["timeout"] = 300
     return init_chat_model(spec, **kwargs)
