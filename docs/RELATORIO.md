@@ -65,7 +65,8 @@ flowchart TD
     T -- "ainda não jogou" --> R
     R -- "respondeu sem jogar" --> N["nudge<br/>cobra a chamada de make_move"]
     N --> R
-    R -- "erro da API ou cobranças esgotadas" --> FB["fallback<br/>jogada heurística de segurança"]
+    R -- "erro da API (1ª vez)" --> R
+    R -- "erro da API repetido ou cobranças esgotadas" --> FB["fallback<br/>jogada heurística de segurança"]
     T -- "limite de chamadas ao LLM" --> FB
     FB --> F
     F --> E([fim do turno])
@@ -77,7 +78,7 @@ flowchart TD
 | `reason` | Chama o LLM com as ferramentas vinculadas (`bind_tools`). Mede o tempo de resposta e conta as chamadas. |
 | `tools` | `ToolNode` do LangGraph: executa as ferramentas pedidas e devolve os resultados ao LLM. |
 | `nudge` | Se o LLM responder sem chamar `make_move`, lembra-o das jogadas válidas (até 2 vezes). |
-| `fallback` | Jogada de segurança pela melhor avaliação heurística quando a API falha, o LLM não joga após as cobranças ou o limite de 8 chamadas por turno é atingido. O jogo nunca trava. |
+| `fallback` | Jogada de segurança pela melhor avaliação heurística quando a API falha duas vezes seguidas (após o primeiro erro o `reason` é repetido), o LLM não joga após as cobranças ou o limite de 10 chamadas por turno é atingido. O jogo nunca trava. |
 | `finalize` | Registra "Turno N: joguei X. <justificativa>" na memória do agente. |
 
 Assim que `make_move` é executado o turno termina, sem uma chamada extra ao LLM só para "fechar" a conversa.
@@ -160,9 +161,13 @@ alfa-beta: melhor valor esperado (159) supondo a melhor resposta do adversário 
 * Jogada inválida → mensagem de erro com as jogadas válidas e nova chance (contabilizada em
   `invalid_attempts`).
 * LLM que responde sem jogar → até 2 cobranças (`nudge`); depois, jogada de segurança.
-* Erro de rede/API, recusa ou limite de 8 chamadas por turno → jogada de segurança heurística, marcada como
-  tal no log, na memória e nas métricas (`fallbacks`).
-* O modelo é criado apenas quando o agente joga, então a interface abre mesmo sem chave de API.
+* Erro de rede/API (por exemplo o `tool_use_failed` do Groq, quando o modelo gera uma chamada de ferramenta
+  malformada) → uma nova tentativa; se o erro se repetir, ou se o limite de 10 chamadas por turno for atingido
+  (modelos sem chamadas paralelas usam uma chamada por ferramenta), jogada de segurança heurística, marcada
+  como tal no log, na memória e nas métricas (`fallbacks`).
+* O modelo é criado apenas quando o agente joga, então a interface abre mesmo sem chave de API; se a chave
+  estiver ausente na hora de jogar, o programa mostra uma mensagem de erro clara.
+* O provedor do LLM é trocado sem mudar código (`init_chat_model`): Anthropic, Groq, OpenAI, Gemini ou Ollama.
 
 ## 7. Interface e modos de jogo
 
@@ -291,7 +296,8 @@ Perguntas do experimento:
 3. Qual o **custo** de cada um: chamadas ao LLM e de ferramentas por jogada, tempo de resposta, jogadas
    inválidas e jogadas de segurança?
 
-Comandos (com `ANTHROPIC_API_KEY` no `.env`; o modelo pode ser trocado com `--model`):
+Comandos (com a chave do provedor no `.env`; o modelo é definido por `OTHELLO_LLM_MODEL` ou `--model`, por
+exemplo `--model groq:openai/gpt-oss-120b`):
 
 ```bash
 # LLM básico e LLM planejador, cada um contra o Heurístico e contra o Guloso

@@ -65,6 +65,25 @@ ANTHROPIC_API_KEY=sua-chave
 O modelo usa o formato `provedor:modelo` do LangChain e também pode ser passado com `--model`. Para usar
 outro provedor, instale o pacote dele e troque a especificação, por exemplo `openai:gpt-4.1-mini`
 (`pip install langchain-openai`) ou `ollama:llama3.1` (`pip install langchain-ollama`, com o Ollama rodando).
+
+#### Usando o Groq
+
+```bash
+pip install langchain-groq
+```
+
+```env
+OTHELLO_LLM_MODEL=groq:openai/gpt-oss-120b
+GROQ_API_KEY=sua-chave
+# OTHELLO_LLM_EFFORT=low   # opcional: esforço de raciocínio dos modelos gpt-oss
+```
+
+Na documentação do Groq (novembro de 2026), `openai/gpt-oss-120b` e `openai/gpt-oss-20b` são os modelos de
+produção de uso livre e ambos suportam ferramentas. Eles não fazem chamadas de ferramentas em paralelo, então
+cada jogada usa mais chamadas ao modelo (o limite é 10 por turno). Se o Groq rejeitar uma chamada de
+ferramenta malformada (`tool_use_failed`), o agente tenta de novo uma vez antes de recorrer à jogada de
+segurança. Faça um teste curto antes dos experimentos:
+`python -m othello play --black llm-planner --white random`.
 Para partidas longas ou muitos experimentos, um modelo menor (por exemplo `anthropic:claude-haiku-5-5`)
 reduz bastante o custo e a latência.
 
